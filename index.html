@@ -1,12 +1,155 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI智能体工作小组</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="./src/main.tsx"></script>
-  </body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地铁警务需求收集系统</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        .header { text-align: center; color: white; padding: 30px 0; }
+        .header h1 { font-size: 2rem; margin-bottom: 10px; }
+        .header p { opacity: 0.9; }
+        .card { background: white; border-radius: 16px; padding: 30px; margin-bottom: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab { flex: 1; padding: 12px; border: none; border-radius: 8px; background: #f0f0f0; cursor: pointer; font-size: 14px; transition: all 0.3s; }
+        .tab.active { background: #667eea; color: white; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 500; color: #333; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #667eea; }
+        .btn-submit { width: 100%; padding: 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; }
+        .hint { text-align: center; color: #666; font-size: 12px; margin-top: 10px; }
+        .feedback-item { background: #f8f9fa; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+        .feedback-item .title { font-weight: 600; color: #333; margin-bottom: 4px; }
+        .feedback-item .meta { font-size: 12px; color: #666; }
+        .section-title { font-size: 1.3rem; color: #333; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #667eea; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🚇 地铁警务需求收集系统</h1>
+            <p>聚焦业务痛点 | 智能文档生成</p>
+        </header>
+        <div class="card">
+            <div class="tabs">
+                <button class="tab active" onclick="showTab('submit', this)">📝 提交需求</button>
+                <button class="tab" onclick="showTab('list', this)">📋 需求列表</button>
+                <button class="tab" onclick="showTab('export', this)">📊 导出数据</button>
+            </div>
+            <div id="tab-submit">
+                <h2 class="section-title">提交工作需求</h2>
+                <form id="requestForm" onsubmit="handleSubmit(event)">
+                    <div class="form-group"><label>所属站点 *</label><input type="text" id="station" placeholder="如：朝阳广场站" required></div>
+                    <div class="form-group"><label>警员姓名 *</label><input type="text" id="officer" required></div>
+                    <div class="form-group"><label>联系方式</label><input type="text" id="contact" placeholder="电话/微信"></div>
+                    <div class="form-group"><label>问题类别 *</label>
+                        <select id="category" required>
+                            <option value="">请选择</option>
+                            <option value="设备故障">设备故障</option>
+                            <option value="人员调配">人员调配</option>
+                            <option value="流程优化">流程优化</option>
+                            <option value="安全隐患">安全隐患</option>
+                            <option value="其他">其他</option>
+                        </select>
+                    </div>
+                    <div class="form-group"><label>业务痛点 *</label><input type="text" id="painPoint" placeholder="简述当前遇到的困难" required></div>
+                    <div class="form-group"><label>详细描述</label><textarea id="description" rows="3" placeholder="详细说明问题..."></textarea></div>
+                    <div class="form-group"><label>紧急程度</label>
+                        <select id="urgency">
+                            <option value="一般">🟢 一般</option>
+                            <option value="高">🟡 高</option>
+                            <option value="紧急">🔴 紧急</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-submit">🚀 提交并生成文档</button>
+                    <p class="hint">提交后将自动下载：Excel汇总表 + PPT汇报文件</p>
+                </form>
+            </div>
+            <div id="tab-list" class="hidden">
+                <h2 class="section-title">已收集需求 (<span id="count">0</span>)</h2>
+                <div id="feedbackList"></div>
+            </div>
+            <div id="tab-export" class="hidden">
+                <h2 class="section-title">数据导出</h2>
+                <p style="text-align:center;color:#666;margin-bottom:20px;">已收集 <span id="exportCount">0</span> 条需求</p>
+                <button class="btn-submit" onclick="exportAll()">📥 重新导出所有文档</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        let requests = [];
+        function showTab(tab, btn) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            btn.classList.add('active');
+            ['submit', 'list', 'export'].forEach(t => document.getElementById('tab-' + t).classList.add('hidden'));
+            document.getElementById('tab-' + tab).classList.remove('hidden');
+            if (tab === 'list') renderList();
+            if (tab === 'export') document.getElementById('exportCount').textContent = requests.length;
+        }
+        function handleSubmit(e) {
+            e.preventDefault();
+            const newRequest = {
+                id: Date.now().toString(),
+                station: document.getElementById('station').value,
+                officer: document.getElementById('officer').value,
+                contact: document.getElementById('contact').value,
+                category: document.getElementById('category').value,
+                painPoint: document.getElementById('painPoint').value,
+                description: document.getElementById('description').value,
+                urgency: document.getElementById('urgency').value,
+                submitTime: new Date().toLocaleString('zh-CN')
+            };
+            requests.push(newRequest);
+            generateDocuments(newRequest);
+            alert('提交成功！文档已自动下载');
+            document.getElementById('requestForm').reset();
+        }
+        function renderList() {
+            document.getElementById('count').textContent = requests.length;
+            const list = document.getElementById('feedbackList');
+            if (requests.length === 0) {
+                list.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">暂无需求，请先提交</p>';
+                return;
+            }
+            list.innerHTML = requests.map(r => `<div class="feedback-item"><div class="title">${r.station} | ${r.category}</div><div class="meta">${r.officer} | ${r.urgency} | ${r.submitTime}</div></div>`).join('');
+        }
+        function generateDocuments(current) {
+            // Excel
+            const ws = XLSX.utils.json_to_sheet(requests.map(r => ({站点:r.station,警员:r.officer,联系方式:r.contact,类别:r.category,痛点:r.painPoint,描述:r.description,紧急度:r.urgency,时间:r.submitTime})));
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '汇总');
+            XLSX.writeFile(wb, `警务需求汇总_${new Date().toISOString().split('T')[0]}.xlsx`);
+            // PPT
+            const pptx = new PptxGenJS();
+            const s1 = pptx.addSlide();
+            s1.addText('地铁警务需求汇报', {x:1,y:2,w:8,h:1,fontSize:36,bold:true,align:'center'});
+            s1.addText(`汇报日期：${new Date().toLocaleDateString('zh-CN')}`, {x:1,y:3.5,w:8,h:0.5,fontSize:16,align:'center'});
+            const s2 = pptx.addSlide();
+            s2.addText('需求汇总统计', {x:0.5,y:0.5,fontSize:24,bold:true});
+            s2.addText(`总需求数：${requests.length} 项`, {x:1,y:1.5,fontSize:18});
+            requests.forEach(r => {
+                const s = pptx.addSlide();
+                s.addText(`${r.station} - ${r.category}`, {x:0.5,y:0.5,fontSize:20,bold:true});
+                s.addText(`提交人：${r.officer} | 紧急度：${r.urgency}`, {x:0.5,y:1.2,fontSize:14,color:'666666'});
+                s.addText('痛点：', {x:0.5,y:1.8,fontSize:14,bold:true});
+                s.addText(r.painPoint, {x:0.5,y:2.2,w:9,h:1.5,fontSize:13});
+            });
+            pptx.writeFile({fileName:`需求汇报_${new Date().toISOString().split('T')[0]}.pptx`});
+        }
+        function exportAll() {
+            if (requests.length > 0) generateDocuments(requests[requests.length-1]);
+        }
+    </script>
+</body>
 </html>
