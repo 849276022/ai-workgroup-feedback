@@ -3,153 +3,577 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>地铁警务需求收集系统</title>
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.min.js"></script>
+    <title>走失人员方向预测控制台 v2</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #1a1a2e; color: #eee; }
+        .container { display: flex; height: 100vh; }
+        .sidebar { width: 360px; background: #16213e; padding: 20px; overflow-y: auto; }
+        .map-container { flex: 1; position: relative; }
+        #map { width: 100%; height: 100%; }
+        
+        h1 { font-size: 20px; margin-bottom: 20px; color: #00d4ff; }
+        h2 { font-size: 16px; margin: 15px 0 10px; color: #00d4ff; }
+        
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-size: 14px; color: #aaa; }
+        input, select { 
+            width: 100%; padding: 8px; border: 1px solid #333; 
+            border-radius: 4px; background: #0f3460; color: #eee; 
         }
-        .container { max-width: 800px; margin: 0 auto; }
-        .header { text-align: center; color: white; padding: 30px 0; }
-        .header h1 { font-size: 2rem; margin-bottom: 10px; }
-        .header p { opacity: 0.9; }
-        .card { background: white; border-radius: 16px; padding: 30px; margin-bottom: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
-        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
-        .tab { flex: 1; padding: 12px; border: none; border-radius: 8px; background: #f0f0f0; cursor: pointer; font-size: 14px; transition: all 0.3s; }
-        .tab.active { background: #667eea; color: white; }
-        .form-group { margin-bottom: 20px; }
-        .form-group label { display: block; margin-bottom: 8px; font-weight: 500; color: #333; }
-        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; }
-        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #667eea; }
-        .btn-submit { width: 100%; padding: 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; }
-        .hint { text-align: center; color: #666; font-size: 12px; margin-top: 10px; }
-        .feedback-item { background: #f8f9fa; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
-        .feedback-item .title { font-weight: 600; color: #333; margin-bottom: 4px; }
-        .feedback-item .meta { font-size: 12px; color: #666; }
-        .section-title { font-size: 1.3rem; color: #333; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #667eea; }
-        .hidden { display: none; }
+        button { 
+            width: 100%; padding: 12px; background: #00d4ff; color: #000; 
+            border: none; border-radius: 4px; font-size: 16px; cursor: pointer;
+            margin-top: 10px; font-weight: bold;
+        }
+        button:hover { background: #00b8d9; }
+        
+        .result-box { 
+            margin-top: 20px; padding: 15px; background: #0f3460; 
+            border-radius: 4px; border-left: 3px solid #00d4ff;
+        }
+        .result-item { margin: 8px 0; font-size: 14px; }
+        .result-label { color: #aaa; }
+        .result-value { color: #00d4ff; font-weight: bold; }
+        
+        .legend { 
+            position: absolute; bottom: 20px; right: 20px; background: rgba(22, 33, 62, 0.95); 
+            padding: 15px; border-radius: 4px; z-index: 1000;
+        }
+        .legend-item { display: flex; align-items: center; margin: 5px 0; font-size: 13px; }
+        .legend-color { width: 16px; height: 16px; margin-right: 8px; border-radius: 3px; }
+        
+        .layer-panel {
+            position: absolute; top: 20px; left: 20px; background: rgba(22, 33, 62, 0.95);
+            padding: 12px; border-radius: 4px; z-index: 1000;
+        }
+        .layer-panel label { display: flex; align-items: center; margin: 4px 0; font-size: 13px; color: #ccc; cursor: pointer; }
+        .layer-panel input[type="checkbox"] { width: auto; margin-right: 8px; }
+        
+        .nearby-info {
+            margin-top: 10px; padding: 10px; background: #0a1628; border-radius: 4px;
+            font-size: 12px; max-height: 150px; overflow-y: auto;
+        }
+        .nearby-item { padding: 3px 0; color: #aaa; }
+        .nearby-item span { color: #00d4ff; }
     </style>
 </head>
 <body>
     <div class="container">
-        <header class="header">
-            <h1>🚇 地铁警务需求收集系统</h1>
-            <p>聚焦业务痛点 | 智能文档生成</p>
-        </header>
-        <div class="card">
-            <div class="tabs">
-                <button class="tab active" onclick="showTab('submit', this)">📝 提交需求</button>
-                <button class="tab" onclick="showTab('list', this)">📋 需求列表</button>
-                <button class="tab" onclick="showTab('export', this)">📊 导出数据</button>
+        <div class="sidebar">
+            <h1>🔍 走失人员方向预测控制台</h1>
+            
+            <h2>走失者信息</h2>
+            <div class="form-group">
+                <label>年龄</label>
+                <input type="number" id="age" value="75" min="0" max="120">
             </div>
-            <div id="tab-submit">
-                <h2 class="section-title">提交工作需求</h2>
-                <form id="requestForm" onsubmit="handleSubmit(event)">
-                    <div class="form-group"><label>所属站点 *</label><input type="text" id="station" placeholder="如：朝阳广场站" required></div>
-                    <div class="form-group"><label>警员姓名 *</label><input type="text" id="officer" required></div>
-                    <div class="form-group"><label>联系方式</label><input type="text" id="contact" placeholder="电话/微信"></div>
-                    <div class="form-group"><label>问题类别 *</label>
-                        <select id="category" required>
-                            <option value="">请选择</option>
-                            <option value="设备故障">设备故障</option>
-                            <option value="人员调配">人员调配</option>
-                            <option value="流程优化">流程优化</option>
-                            <option value="安全隐患">安全隐患</option>
-                            <option value="其他">其他</option>
-                        </select>
-                    </div>
-                    <div class="form-group"><label>业务痛点 *</label><input type="text" id="painPoint" placeholder="简述当前遇到的困难" required></div>
-                    <div class="form-group"><label>详细描述</label><textarea id="description" rows="3" placeholder="详细说明问题..."></textarea></div>
-                    <div class="form-group"><label>紧急程度</label>
-                        <select id="urgency">
-                            <option value="一般">🟢 一般</option>
-                            <option value="高">🟡 高</option>
-                            <option value="紧急">🔴 紧急</option>
-                        </select>
-                    </div>
-                    <button type="submit" class="btn-submit">🚀 提交并生成文档</button>
-                    <p class="hint">提交后将自动下载：Excel汇总表 + PPT汇报文件</p>
-                </form>
+            <div class="form-group">
+                <label>类型</label>
+                <select id="person-type">
+                    <option value="elderly-dementia">失智老人</option>
+                    <option value="elderly-normal">正常老人</option>
+                    <option value="child">儿童</option>
+                    <option value="mental">精神障碍</option>
+                    <option value="normal">普通成人</option>
+                </select>
             </div>
-            <div id="tab-list" class="hidden">
-                <h2 class="section-title">已收集需求 (<span id="count">0</span>)</h2>
-                <div id="feedbackList"></div>
+            <div class="form-group">
+                <label>身体状况</label>
+                <select id="physical">
+                    <option value="good">良好</option>
+                    <option value="limited" selected>行动受限</option>
+                    <option value="disabled">严重残疾</option>
+                </select>
             </div>
-            <div id="tab-export" class="hidden">
-                <h2 class="section-title">数据导出</h2>
-                <p style="text-align:center;color:#666;margin-bottom:20px;">已收集 <span id="exportCount">0</span> 条需求</p>
-                <button class="btn-submit" onclick="exportAll()">📥 重新导出所有文档</button>
+            
+            <h2>走失地点</h2>
+            <div class="form-group">
+                <label>快速选择（地铁站点）</label>
+                <select id="station-select" onchange="selectStation()">
+                    <option value="">-- 自定义位置 --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>点击地图选择走失点，或输入坐标</label>
+                <input type="text" id="coords" placeholder="纬度, 经度" value="22.8147, 108.3200">
+            </div>
+            
+            <h2>环境因素</h2>
+            <div class="form-group">
+                <label>时间</label>
+                <select id="time">
+                    <option value="day">白天 (6:00-18:00)</option>
+                    <option value="night" selected>夜晚 (18:00-6:00)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>天气</label>
+                <select id="weather">
+                    <option value="clear">晴朗</option>
+                    <option value="rain" selected>雨天</option>
+                    <option value="cold">寒冷</option>
+                    <option value="hot">高温</option>
+                </select>
+            </div>
+            
+            <button onclick="predict()">🎯 预测可能方向</button>
+            
+            <div id="results" class="result-box" style="display: none;">
+                <h2>📊 预测结果</h2>
+                <div id="result-content"></div>
+                <div id="nearby-info" class="nearby-info"></div>
+            </div>
+        </div>
+        
+        <div class="map-container">
+            <div id="map"></div>
+            
+            <div class="layer-panel">
+                <label><input type="checkbox" id="layer-metro" checked onchange="toggleLayer('metro')"> 🚇 地铁站</label>
+                <label><input type="checkbox" id="layer-river" checked onchange="toggleLayer('river')"> 🌊 河流</label>
+                <label><input type="checkbox" id="layer-park" checked onchange="toggleLayer('park')"> 🌳 公园</label>
+                <label><input type="checkbox" id="layer-hospital" checked onchange="toggleLayer('hospital')"> 🏥 医院</label>
+                <label><input type="checkbox" id="layer-police" checked onchange="toggleLayer('police')"> 👮 派出所</label>
+                <label><input type="checkbox" id="layer-shelter" checked onchange="toggleLayer('shelter')"> 🏠 救助站</label>
+                <label><input type="checkbox" id="layer-commercial" checked onchange="toggleLayer('commercial')"> 🏪 商圈</label>
+                <label><input type="checkbox" id="layer-transport" checked onchange="toggleLayer('transport')"> 🚌 交通枢纽</label>
+            </div>
+            
+            <div class="legend">
+                <div class="legend-item"><div class="legend-color" style="background: #ff4444;"></div><span>走失点</span></div>
+                <div class="legend-item"><div class="legend-color" style="background: #ffaa00;"></div><span>地铁站</span></div>
+                <div class="legend-item"><div class="legend-color" style="background: #4488ff;"></div><span>河流</span></div>
+                <div class="legend-item"><div class="legend-color" style="background: #44cc44;"></div><span>公园</span></div>
+                <div class="legend-item"><div class="legend-color" style="background: #ff6666;"></div><span>医院</span></div>
+                <div class="legend-item"><div class="legend-color" style="background: #6666ff;"></div><span>派出所</span></div>
+                <div class="legend-item"><div class="legend-color" style="background: #ff66ff;"></div><span>救助站</span></div>
+                <div class="legend-item"><div class="legend-color" style="background: #ffcc00;"></div><span>商圈</span></div>
+                <div class="legend-item"><div class="legend-color" style="background: #00ff88;"></div><span>预测方向</span></div>
             </div>
         </div>
     </div>
+
     <script>
-        let requests = [];
-        function showTab(tab, btn) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            btn.classList.add('active');
-            ['submit', 'list', 'export'].forEach(t => document.getElementById('tab-' + t).classList.add('hidden'));
-            document.getElementById('tab-' + tab).classList.remove('hidden');
-            if (tab === 'list') renderList();
-            if (tab === 'export') document.getElementById('exportCount').textContent = requests.length;
+        // ========== 知识库数据 ==========
+        
+        // 南宁地铁2号线站点
+        const metroStations = [
+            { name: "西津", lat: 22.8350, lng: 108.3080 },
+            { name: "安吉客运站", lat: 22.8230, lng: 108.3150 },
+            { name: "苏卢", lat: 22.8130, lng: 108.3170 },
+            { name: "三十三中", lat: 22.8040, lng: 108.3180 },
+            { name: "秀厢", lat: 22.7950, lng: 108.3190 },
+            { name: "明秀路", lat: 22.7860, lng: 108.3200 },
+            { name: "火车站", lat: 22.7750, lng: 108.3210 },
+            { name: "朝阳广场", lat: 22.7660, lng: 108.3280 },
+            { name: "南宁剧场", lat: 22.7540, lng: 108.3270 },
+            { name: "福建园", lat: 22.7430, lng: 108.3350 },
+            { name: "亭洪路", lat: 22.7320, lng: 108.3450 },
+            { name: "大沙田", lat: 22.7200, lng: 108.3560 },
+            { name: "金象", lat: 22.7100, lng: 108.3650 },
+            { name: "石子塘", lat: 22.7000, lng: 108.3780 },
+            { name: "建设路", lat: 22.6900, lng: 108.3880 },
+            { name: "玉洞", lat: 22.6800, lng: 108.4000 },
+            { name: "平良立交", lat: 22.6780, lng: 108.4250 },
+            { name: "坛泽", lat: 22.6760, lng: 108.4500 }
+        ];
+        
+        // 河流（邕江段坐标点）
+        const rivers = [
+            {
+                name: "邕江",
+                coords: [
+                    [22.8200, 108.2500], [22.8100, 108.2700], [22.7950, 108.2850],
+                    [22.7800, 108.2950], [22.7700, 108.3050], [22.7600, 108.3150],
+                    [22.7500, 108.3300], [22.7400, 108.3450], [22.7300, 108.3600],
+                    [22.7200, 108.3800], [22.7100, 108.4000], [22.7000, 108.4200],
+                    [22.6900, 108.4400], [22.6800, 108.4600]
+                ]
+            },
+            {
+                name: "南湖",
+                coords: [
+                    [22.8100, 108.3580], [22.8080, 108.3620], [22.8050, 108.3650],
+                    [22.8020, 108.3660], [22.7990, 108.3650], [22.7960, 108.3620],
+                    [22.7940, 108.3580], [22.7960, 108.3540], [22.7990, 108.3520],
+                    [22.8020, 108.3510], [22.8050, 108.3520], [22.8080, 108.3550],
+                    [22.8100, 108.3580]
+                ]
+            }
+        ];
+        
+        // 公园
+        const parks = [
+            { name: "南湖公园", lat: 22.8020, lng: 108.3580, radius: 400 },
+            { name: "青秀山风景区", lat: 22.7900, lng: 108.3800, radius: 800 },
+            { name: "人民公园", lat: 22.7780, lng: 108.3320, radius: 300 },
+            { name: "狮山公园", lat: 22.7950, lng: 108.3450, radius: 250 },
+            { name: "金花茶公园", lat: 22.8050, lng: 108.3700, radius: 200 },
+            { name: "五象湖公园", lat: 22.6850, lng: 108.4150, radius: 350 },
+            { name: "江南公园", lat: 22.7350, lng: 108.3350, radius: 200 },
+            { name: "相思湖公园", lat: 22.8100, lng: 108.2700, radius: 300 },
+            { name: "邕江滨江公园", lat: 22.7600, lng: 108.3400, radius: 200 }
+        ];
+        
+        // 医院
+        const hospitals = [
+            { name: "医科大一附院", lat: 22.7750, lng: 108.3450, type: "三甲" },
+            { name: "广西区人民医院", lat: 22.7680, lng: 108.3350, type: "三甲" },
+            { name: "南宁市第一人民医院", lat: 22.7620, lng: 108.3280, type: "三甲" },
+            { name: "南宁市第二人民医院", lat: 22.7400, lng: 108.3300, type: "三甲" },
+            { name: "广西中医药大学一附院", lat: 22.7800, lng: 108.3400, type: "三甲" },
+            { name: "南宁市妇幼保健院", lat: 22.7700, lng: 108.3300, type: "三甲" },
+            { name: "江滨医院", lat: 22.7550, lng: 108.3400, type: "三甲" },
+            { name: "武警广西总队医院", lat: 22.7900, lng: 108.3100, type: "三甲" }
+        ];
+        
+        // 派出所
+        const policeStations = [
+            { name: "新城派出所", lat: 22.7700, lng: 108.3350, area: "兴宁区" },
+            { name: "朝阳派出所", lat: 22.7650, lng: 108.3250, area: "兴宁区" },
+            { name: "北湖派出所", lat: 22.7950, lng: 108.3200, area: "西乡塘区" },
+            { name: "安吉派出所", lat: 22.8200, lng: 108.3100, area: "西乡塘区" },
+            { name: "江南派出所", lat: 22.7350, lng: 108.3300, area: "江南区" },
+            { name: "大沙田派出所", lat: 22.7200, lng: 108.3600, area: "良庆区" },
+            { name: "五象派出所", lat: 22.6850, lng: 108.4100, area: "良庆区" },
+            { name: "青秀山派出所", lat: 22.7900, lng: 108.3700, area: "青秀区" },
+            { name: "东葛派出所", lat: 22.7850, lng: 108.3550, area: "青秀区" },
+            { name: "火车站派出所", lat: 22.7750, lng: 108.3200, area: "西乡塘区" }
+        ];
+        
+        // 救助站
+        const shelters = [
+            { name: "南宁市救助管理站", lat: 22.7300, lng: 108.3500, address: "江南区" },
+            { name: "南宁市社会福利院", lat: 22.7900, lng: 108.3050, address: "西乡塘区" },
+            { name: "南宁市儿童福利院", lat: 22.8000, lng: 108.3000, address: "西乡塘区" }
+        ];
+        
+        // 商圈
+        const commercialAreas = [
+            { name: "朝阳商圈", lat: 22.7660, lng: 108.3280, radius: 500 },
+            { name: "万象城商圈", lat: 22.8050, lng: 108.3750, radius: 400 },
+            { name: "会展中心商圈", lat: 22.8000, lng: 108.3900, radius: 350 },
+            { name: "航洋城商圈", lat: 22.8000, lng: 108.3650, radius: 300 },
+            { name: "江南万达商圈", lat: 22.7350, lng: 108.3400, radius: 300 },
+            { name: "西乡塘商圈", lat: 22.7850, lng: 108.3100, radius: 300 },
+            { name: "五象万达商圈", lat: 22.6850, lng: 108.4200, radius: 300 }
+        ];
+        
+        // 交通枢纽
+        const transportHubs = [
+            { name: "南宁火车站", lat: 22.7750, lng: 108.3210, type: "铁路" },
+            { name: "南宁东站", lat: 22.7600, lng: 108.4200, type: "铁路" },
+            { name: "琅东客运站", lat: 22.7900, lng: 108.4000, type: "长途汽车" },
+            { name: "江南客运站", lat: 22.7250, lng: 108.3500, type: "长途汽车" },
+            { name: "安吉客运站", lat: 22.8230, lng: 108.3150, type: "长途汽车" },
+            { name: "西乡塘客运站", lat: 22.8000, lng: 108.2800, type: "长途汽车" }
+        ];
+        
+        // ========== 地图初始化 ==========
+        const map = L.map('map').setView([22.79, 108.35], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+        
+        let lostMarker = null;
+        let predictionLayer = null;
+        
+        // 图层组
+        const layers = {
+            metro: L.layerGroup(),
+            river: L.layerGroup(),
+            park: L.layerGroup(),
+            hospital: L.layerGroup(),
+            police: L.layerGroup(),
+            shelter: L.layerGroup(),
+            commercial: L.layerGroup(),
+            transport: L.layerGroup()
+        };
+        
+        // 绘制地铁站
+        metroStations.forEach(station => {
+            L.circleMarker([station.lat, station.lng], {
+                radius: 5, fillColor: '#ffaa00', color: '#fff', weight: 1.5, fillOpacity: 0.9
+            }).bindPopup(`<b>🚇 ${station.name}站</b>`).addTo(layers.metro);
+        });
+        L.polyline(metroStations.map(s => [s.lat, s.lng]), {
+            color: '#ffaa00', weight: 2.5, opacity: 0.5, dashArray: '8, 8'
+        }).addTo(layers.metro);
+        
+        // 绘制河流
+        rivers.forEach(river => {
+            if (river.name === "邕江") {
+                L.polyline(river.coords, { color: '#4488ff', weight: 4, opacity: 0.7 }).addTo(layers.river);
+            } else {
+                L.polygon(river.coords, { 
+                    color: '#4488ff', fillColor: '#4488ff', fillOpacity: 0.3, weight: 2 
+                }).bindPopup(`<b>🌊 ${river.name}</b>`).addTo(layers.river);
+            }
+        });
+        
+        // 绘制公园
+        parks.forEach(park => {
+            L.circle([park.lat, park.lng], {
+                radius: park.radius, color: '#44cc44', fillColor: '#44cc44', fillOpacity: 0.15, weight: 1.5
+            }).bindPopup(`<b>🌳 ${park.name}</b>`).addTo(layers.park);
+        });
+        
+        // 绘制医院
+        hospitals.forEach(h => {
+            L.marker([h.lat, h.lng], {
+                icon: L.divIcon({
+                    html: '<div style="background:#ff6666;width:12px;height:12px;border-radius:50%;border:2px solid white;"></div>',
+                    className: '', iconSize: [12, 12]
+                })
+            }).bindPopup(`<b>🏥 ${h.name}</b><br>${h.type}`).addTo(layers.hospital);
+        });
+        
+        // 绘制派出所
+        policeStations.forEach(p => {
+            L.marker([p.lat, p.lng], {
+                icon: L.divIcon({
+                    html: '<div style="background:#6666ff;width:12px;height:12px;border-radius:50%;border:2px solid white;"></div>',
+                    className: '', iconSize: [12, 12]
+                })
+            }).bindPopup(`<b>👮 ${p.name}</b><br>${p.area}`).addTo(layers.police);
+        });
+        
+        // 绘制救助站
+        shelters.forEach(s => {
+            L.marker([s.lat, s.lng], {
+                icon: L.divIcon({
+                    html: '<div style="background:#ff66ff;width:14px;height:14px;border-radius:50%;border:2px solid white;"></div>',
+                    className: '', iconSize: [14, 14]
+                })
+            }).bindPopup(`<b>🏠 ${s.name}</b><br>${s.address}`).addTo(layers.shelter);
+        });
+        
+        // 绘制商圈
+        commercialAreas.forEach(c => {
+            L.circle([c.lat, c.lng], {
+                radius: c.radius, color: '#ffcc00', fillColor: '#ffcc00', fillOpacity: 0.1, weight: 1.5, dashArray: '5,5'
+            }).bindPopup(`<b>🏪 ${c.name}</b>`).addTo(layers.commercial);
+        });
+        
+        // 绘制交通枢纽
+        transportHubs.forEach(t => {
+            L.marker([t.lat, t.lng], {
+                icon: L.divIcon({
+                    html: '<div style="background:#00ccff;width:14px;height:14px;border-radius:3px;border:2px solid white;"></div>',
+                    className: '', iconSize: [14, 14]
+                })
+            }).bindPopup(`<b>🚌 ${t.name}</b><br>${t.type}`).addTo(layers.transport);
+        });
+        
+        // 添加所有图层到地图
+        Object.values(layers).forEach(l => l.addTo(map));
+        
+        // 图层切换
+        function toggleLayer(name) {
+            const checked = document.getElementById('layer-' + name).checked;
+            if (checked) {
+                map.addLayer(layers[name]);
+            } else {
+                map.removeLayer(layers[name]);
+            }
         }
-        function handleSubmit(e) {
-            e.preventDefault();
-            const newRequest = {
-                id: Date.now().toString(),
-                station: document.getElementById('station').value,
-                officer: document.getElementById('officer').value,
-                contact: document.getElementById('contact').value,
-                category: document.getElementById('category').value,
-                painPoint: document.getElementById('painPoint').value,
-                description: document.getElementById('description').value,
-                urgency: document.getElementById('urgency').value,
-                submitTime: new Date().toLocaleString('zh-CN')
-            };
-            requests.push(newRequest);
-            generateDocuments(newRequest);
-            alert('提交成功！文档已自动下载');
-            document.getElementById('requestForm').reset();
+        
+        // 填充站点下拉框
+        const stationSelect = document.getElementById('station-select');
+        metroStations.forEach((station, index) => {
+            const opt = document.createElement('option');
+            opt.value = index;
+            opt.textContent = station.name + '站';
+            stationSelect.appendChild(opt);
+        });
+        
+        // 下拉框选择站点
+        function selectStation() {
+            const val = document.getElementById('station-select').value;
+            if (val === '') return;
+            const station = metroStations[parseInt(val)];
+            document.getElementById('coords').value = `${station.lat.toFixed(5)}, ${station.lng.toFixed(5)}`;
+            setLostMarker(station.lat, station.lng, `${station.name}站附近`);
+            map.setView([station.lat, station.lng], 15);
         }
-        function renderList() {
-            document.getElementById('count').textContent = requests.length;
-            const list = document.getElementById('feedbackList');
-            if (requests.length === 0) {
-                list.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">暂无需求，请先提交</p>';
+        
+        // 设置走失点标记
+        function setLostMarker(lat, lng, popupText) {
+            if (lostMarker) map.removeLayer(lostMarker);
+            lostMarker = L.marker([lat, lng], {
+                icon: L.divIcon({
+                    html: '<div style="background:#ff4444;width:30px;height:30px;border-radius:50%;border:3px solid white;box-shadow:0 0 10px rgba(255,0,0,0.5);"></div>',
+                    className: '', iconSize: [30, 30]
+                })
+            }).addTo(map).bindPopup(`<b>📍 走失点</b><br>${popupText}`).openPopup();
+        }
+        
+        // 点击地图选择走失点
+        map.on('click', function(e) {
+            document.getElementById('coords').value = `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
+            document.getElementById('station-select').value = '';
+            setLostMarker(e.latlng.lat, e.latlng.lng, '自定义位置');
+        });
+        
+        // ========== 预测引擎 ==========
+        
+        function findNearest(lat, lng, list) {
+            let minDist = Infinity, nearest = null;
+            list.forEach(item => {
+                const d = Math.sqrt(Math.pow(lat - item.lat, 2) + Math.pow(lng - item.lng, 2));
+                if (d < minDist) { minDist = d; nearest = item; }
+            });
+            return { item: nearest, distance: minDist };
+        }
+        
+        function getAngle(fromLat, fromLng, toLat, toLng) {
+            return Math.atan2(toLng - fromLng, toLat - fromLat) * 180 / Math.PI;
+        }
+        
+        function predict() {
+            const coords = document.getElementById('coords').value.split(',').map(s => parseFloat(s.trim()));
+            if (coords.length !== 2 || isNaN(coords[0]) || isNaN(coords[1])) {
+                alert('请输入有效的坐标');
                 return;
             }
-            list.innerHTML = requests.map(r => `<div class="feedback-item"><div class="title">${r.station} | ${r.category}</div><div class="meta">${r.officer} | ${r.urgency} | ${r.submitTime}</div></div>`).join('');
-        }
-        function generateDocuments(current) {
-            // Excel
-            const ws = XLSX.utils.json_to_sheet(requests.map(r => ({站点:r.station,警员:r.officer,联系方式:r.contact,类别:r.category,痛点:r.painPoint,描述:r.description,紧急度:r.urgency,时间:r.submitTime})));
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, '汇总');
-            XLSX.writeFile(wb, `警务需求汇总_${new Date().toISOString().split('T')[0]}.xlsx`);
-            // PPT
-            const pptx = new PptxGenJS();
-            const s1 = pptx.addSlide();
-            s1.addText('地铁警务需求汇报', {x:1,y:2,w:8,h:1,fontSize:36,bold:true,align:'center'});
-            s1.addText(`汇报日期：${new Date().toLocaleDateString('zh-CN')}`, {x:1,y:3.5,w:8,h:0.5,fontSize:16,align:'center'});
-            const s2 = pptx.addSlide();
-            s2.addText('需求汇总统计', {x:0.5,y:0.5,fontSize:24,bold:true});
-            s2.addText(`总需求数：${requests.length} 项`, {x:1,y:1.5,fontSize:18});
-            requests.forEach(r => {
-                const s = pptx.addSlide();
-                s.addText(`${r.station} - ${r.category}`, {x:0.5,y:0.5,fontSize:20,bold:true});
-                s.addText(`提交人：${r.officer} | 紧急度：${r.urgency}`, {x:0.5,y:1.2,fontSize:14,color:'666666'});
-                s.addText('痛点：', {x:0.5,y:1.8,fontSize:14,bold:true});
-                s.addText(r.painPoint, {x:0.5,y:2.2,w:9,h:1.5,fontSize:13});
+            
+            const lat = coords[0], lng = coords[1];
+            const age = parseInt(document.getElementById('age').value);
+            const personType = document.getElementById('person-type').value;
+            const physical = document.getElementById('physical').value;
+            const time = document.getElementById('time').value;
+            const weather = document.getElementById('weather').value;
+            
+            // 找周边关键设施
+            const nearMetro = findNearest(lat, lng, metroStations);
+            const nearHospital = findNearest(lat, lng, hospitals);
+            const nearPolice = findNearest(lat, lng, policeStations);
+            const nearShelter = findNearest(lat, lng, shelters);
+            const nearPark = findNearest(lat, lng, parks);
+            const nearCommercial = findNearest(lat, lng, commercialAreas);
+            const nearTransport = findNearest(lat, lng, transportHubs);
+            
+            let directions = [];
+            let confidence = 0;
+            const distScale = 111320; // 1度 ≈ 111km
+            
+            // 根据类型生成预测方向
+            if (personType === 'elderly-dementia') {
+                // 失智老人：倾向于往熟悉方向走，可能找交通工具
+                const angle = getAngle(lat, lng, nearMetro.item.lat, nearMetro.item.lng);
+                directions.push({ angle, label: `往${nearMetro.item.name}站（可能想坐车回家）`, weight: 0.35 });
+                confidence += 35;
+                
+                // 可能往公园/广场等熟悉地方
+                if (nearPark.distance < 0.01) {
+                    const pAngle = getAngle(lat, lng, nearPark.item.lat, nearPark.item.lng);
+                    directions.push({ angle: pAngle, label: `往${nearPark.item.name}（晨练习惯）`, weight: 0.2 });
+                    confidence += 20;
+                }
+            } else if (personType === 'child') {
+                // 儿童：可能被吸引到商圈/公园
+                const angle = getAngle(lat, lng, nearCommercial.item.lat, nearCommercial.item.lng);
+                directions.push({ angle, label: `往${nearCommercial.item.name}（被吸引）`, weight: 0.3 });
+                confidence += 30;
+                
+                const pAngle = getAngle(lat, lng, nearPark.item.lat, nearPark.item.lng);
+                directions.push({ angle: pAngle, label: `往${nearPark.item.name}（玩耍）`, weight: 0.25 });
+                confidence += 25;
+            } else if (personType === 'mental') {
+                // 精神障碍：行为不可预测，但可能往开阔地/水边
+                directions.push({ angle: 0, label: '北（无规律，需全面搜索）', weight: 0.25 });
+                directions.push({ angle: 90, label: '东', weight: 0.25 });
+                directions.push({ angle: 180, label: '南', weight: 0.25 });
+                directions.push({ angle: 270, label: '西', weight: 0.25 });
+                confidence = 15;
+            }
+            
+            // 天气影响
+            if (weather === 'rain') {
+                const sAngle = getAngle(lat, lng, nearShelter.item.lat, nearShelter.item.lng);
+                directions.push({ angle: sAngle, label: `往${nearShelter.item.name}（避雨）`, weight: 0.15 });
+                confidence += 15;
+            } else if (weather === 'cold') {
+                const hAngle = getAngle(lat, lng, nearHospital.item.lat, nearHospital.item.lng);
+                directions.push({ angle: hAngle, label: `往${nearHospital.item.name}（取暖/求助）`, weight: 0.15 });
+                confidence += 15;
+            }
+            
+            // 夜晚影响
+            if (time === 'night') {
+                const cAngle = getAngle(lat, lng, nearCommercial.item.lat, nearCommercial.item.lng);
+                directions.push({ angle: cAngle, label: `往${nearCommercial.item.name}（灯光/24h店铺）`, weight: 0.1 });
+                confidence += 10;
+            }
+            
+            // 行动受限
+            if (physical === 'limited' || physical === 'disabled') {
+                confidence = Math.max(confidence - 10, 5);
+            }
+            
+            // 兜底
+            if (directions.length === 0) {
+                directions = [
+                    { angle: 0, label: '北', weight: 0.25 },
+                    { angle: 90, label: '东', weight: 0.25 },
+                    { angle: 180, label: '南', weight: 0.25 },
+                    { angle: 270, label: '西', weight: 0.25 }
+                ];
+                confidence = 10;
+            }
+            
+            // 清除旧预测
+            if (predictionLayer) map.removeLayer(predictionLayer);
+            predictionLayer = L.layerGroup().addTo(map);
+            
+            // 画预测扇形
+            directions.forEach(dir => {
+                const angleRad = (dir.angle * Math.PI) / 180;
+                const points = [];
+                const radius = 0.015 * dir.weight * 3;
+                
+                for (let i = -30; i <= 30; i += 5) {
+                    const a = angleRad + (i * Math.PI) / 180;
+                    points.push([
+                        lat + (radius * Math.cos(a)),
+                        lng + (radius * Math.sin(a)) / Math.cos(lat * Math.PI / 180)
+                    ]);
+                }
+                points.push([lat, lng]);
+                
+                L.polygon(points, {
+                    color: '#00ff88', fillColor: '#00ff88', fillOpacity: 0.2, weight: 2
+                }).addTo(predictionLayer).bindPopup(dir.label);
             });
-            pptx.writeFile({fileName:`需求汇报_${new Date().toISOString().split('T')[0]}.pptx`});
+            
+            // 显示结果
+            document.getElementById('results').style.display = 'block';
+            
+            let html = `<div class="result-item"><span class="result-label">综合置信度：</span><span class="result-value">${confidence}%</span></div>`;
+            html += '<div class="result-item"><span class="result-label">可能方向：</span></div>';
+            directions.forEach(dir => {
+                html += `<div class="result-item" style="margin-left:15px;">• ${dir.label} (${(dir.weight*100).toFixed(0)}%)</div>`;
+            });
+            document.getElementById('result-content').innerHTML = html;
+            
+            // 周边设施信息
+            const distKm = (d) => (d * distScale / 1000).toFixed(2);
+            let nearbyHtml = '<b>📍 周边关键设施：</b><br>';
+            nearbyHtml += `<div class="nearby-item">🚇 最近地铁：<span>${nearMetro.item.name}站 (${distKm(nearMetro.distance)}km)</span></div>`;
+            nearbyHtml += `<div class="nearby-item">🏥 最近医院：<span>${nearHospital.item.name} (${distKm(nearHospital.distance)}km)</span></div>`;
+            nearbyHtml += `<div class="nearby-item">👮 最近派出所：<span>${nearPolice.item.name} (${distKm(nearPolice.distance)}km)</span></div>`;
+            nearbyHtml += `<div class="nearby-item">🏠 最近救助站：<span>${nearShelter.item.name} (${distKm(nearShelter.distance)}km)</span></div>`;
+            nearbyHtml += `<div class="nearby-item">🌳 最近公园：<span>${nearPark.item.name} (${distKm(nearPark.distance)}km)</span></div>`;
+            nearbyHtml += `<div class="nearby-item">🏪 最近商圈：<span>${nearCommercial.item.name} (${distKm(nearCommercial.distance)}km)</span></div>`;
+            nearbyHtml += `<div class="nearby-item">🚌 最近枢纽：<span>${nearTransport.item.name} (${distKm(nearTransport.distance)}km)</span></div>`;
+            document.getElementById('nearby-info').innerHTML = nearbyHtml;
         }
-        function exportAll() {
-            if (requests.length > 0) generateDocuments(requests[requests.length-1]);
-        }
+        
+        // 初始化走失点
+        setLostMarker(22.8147, 108.3200, '苏卢站附近');
     </script>
 </body>
 </html>
